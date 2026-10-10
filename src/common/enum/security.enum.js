@@ -1,0 +1,12 @@
+export const HashApproachEnum = {
+  BCRYPT:0,
+  ARGON2:1
+}
+export const LangugeEnum = {
+  AR:0,
+  EN:1
+}
+export const LogoutEnum = {
+  DEVICE:0,
+  ALL:1
+}
