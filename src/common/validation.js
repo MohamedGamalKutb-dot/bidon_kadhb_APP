@@ -29,6 +29,7 @@ export const generalValidationFields = {
   email: (lang)=>z.email({
     message: "invalid email format please add valid email like example@any.com",
   }),
+  otp: (lang) => z.string().regex(/^\d{6}$/, {error:"invalid code"}),
   password:(lang)=> z.string().min(8).max(16),
 
   username: (lang)=>z.string().min(2, 

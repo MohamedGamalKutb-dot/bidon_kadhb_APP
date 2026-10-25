@@ -19,8 +19,9 @@ import { RoleEnum } from "../enum/user.enum.js";
 import { randomUUID } from "node:crypto";
 import { exist, set } from "../services/index.js";
 
-export const userBaseRevokeTokenKey = ({ userId,  }) => {
-  return `User::${userId._id.toString()}::Revoke_Token`;
+export const userBaseRevokeTokenKey = ({ userId }) => {
+  const id = userId?._id || userId;
+  return `User::${id}::Revoke_Token`;
 };
 export const userRevokeTokenKey = ({ userId, jti }) => {
   return `${userBaseRevokeTokenKey({userId})}::${jti}`;
@@ -103,7 +104,8 @@ export const decodeToken = async ({
   if (!user) {
     throw NotfoundExeception("invalid user Account");
   }
-  if ((user.changeCredentialsTime.getTime() ?? 0) > payload.iat * 1000) {
+ if (user.changeCredentialsTime && (user.changeCredentialsTime.getTime() > payload.iat * 1000)) {
+    throw UnauthorizedExeception("Token expired, please login again");
   }
   return { user, payload };
 };
@@ -116,7 +118,7 @@ export const createLoginCredentials = async ({
   const { accessSignature, refreshSignature } = await getTokenSignatures({
     role: user.role,
   });
-  const jetid = randomUUID();
+  const jwtid = randomUUID();
   const access_token = await createToken({
     payload: { sub: user._id },
     secret: accessSignature,
@@ -125,7 +127,7 @@ export const createLoginCredentials = async ({
       issuer,
       audience: [user.role],
       expiresIn: ACCESS_TOKEN_EXPIRES_IN,
-      jetid,
+      jwtid,
     },
   });
 
@@ -137,7 +139,7 @@ export const createLoginCredentials = async ({
       issuer,
       audience: [user.role],
       expiresIn: REFRESH_TOKEN_EXPIRES_IN,
-      jetid,
+      jwtid,
     },
   });
 
@@ -146,13 +148,13 @@ export const createLoginCredentials = async ({
 };
 
 export const creatRevokeToken = async ({ payload }) => {
-  console.log(payload, consumedTime, refreshExpiresIn, ttl);
   const consumedTime = (Math.ceil(Date.now() / 1000) - payload.iat) / 60;
   const refreshExpiresIn = payload.iat + REFRESH_TOKEN_EXPIRES_IN;
-  const ttl = refreshExpiresIn - consumedTime;
+  const ttl = Math.floor(refreshExpiresIn - consumedTime);
+  console.log(payload, consumedTime, refreshExpiresIn, ttl);
   await set({
     Key: userRevokeTokenKey({ userId: payload.sub, jti: payload.jti }),
-    Value: payload.jti,
+    value: payload.jti,
     ttl,
   });
 };

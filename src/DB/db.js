@@ -4,6 +4,7 @@ import {  DB_URI } from "../config.js";
 import { mongoose } from 'mongoose';
 import { UserModel } from "./model/user.model.js";
 import { messageModel } from "./model/message.model.js";
+import { connectRedis } from "./redis.connection.js";
 const client = new MongoClient(DB_URI, { serverSelectionTimeoutMS: 30000 });
 export const connectDB = async (app, port) => {
 

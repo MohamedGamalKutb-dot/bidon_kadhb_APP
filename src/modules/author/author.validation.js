@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { email, z } from "zod";
 import { generalValidationFields } from "../../common/validation.js";
 
 export const loginSchema = (lang)=>{
@@ -11,6 +11,37 @@ export const loginSchema = (lang)=>{
 export const login = (lang)=>{
   return z.object({
     body:loginSchema(lang),
+   
+})
+};
+export const resendConfirmEmail = (lang)=>{
+  return z.object({
+    body: z.strictObject({
+      email:generalValidationFields.email(lang),
+   }),
+   
+})
+};
+
+export const resetForgotPassword = (lang)=>{
+  return z.object({
+    body: z.strictObject({
+      email:generalValidationFields.email(lang),
+      otp:generalValidationFields.otp(lang),
+      password: generalValidationFields.password(lang),
+      confirmpassword: generalValidationFields.password(lang),
+   })
+  .superRefine((data, ctx) => {
+    generalValidationFields.matchFields({original:"password",copy:"confirmpassword",data,ctx})
+
+})
+})};
+export const confirmEmail = (lang)=>{
+  return z.object({
+    body: z.strictObject({
+      email:generalValidationFields.email(lang),
+      otp:generalValidationFields.otp(lang),
+    }),
    
 })
 };

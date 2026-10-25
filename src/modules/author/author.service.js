@@ -1,31 +1,52 @@
-import mongoose from "mongoose";
 import { UserModel } from "../../DB/model/user.model.js";
-import { create, createOne, findOne } from "../../common/repository/index.js";
+import { createOne, findOne } from "../../common/repository/index.js";
 import {
   BadExeception,
   ConflictExeception,
   NotfoundExeception,
+  TooManyReuestExeception,
 } from "../../common/exceptions/index.js";
-import { compare, createLoginCredentials, hash } from "../../common/security/index.js";
+import {
+  compare,
+  createLoginCredentials,
+  hash,
+  userBaseRevokeTokenKey,
+} from "../../common/security/index.js";
 import { WEB_CLIENT_IDS } from "../../config.js";
-import {OAuth2Client} from'google-auth-library';
-import { ProviderEnum } from './../../common/enum/user.enum.js';
+import { OAuth2Client } from "google-auth-library";
+import { ProviderEnum } from "./../../common/enum/user.enum.js";
+import {
+  createOtp,
+  emailEvent,
+  UserEmailKey,
+  UserEmailTrailsKey,
+} from "../../common/utils/index.js";
+import { EmailSubjectEnum } from "../../common/enum/email.enum.js";
+import {
+  del,
+  expire,
+  get,
+  Keys,
+  set,
+  ttl,
+  incrBy,
+} from "../../common/services/cache.services.js";
 
 const client = new OAuth2Client();
 async function verifyGoogleAccount(idToken) {
   const ticket = await client.verifyIdToken({
-      idToken ,
-      audience: WEB_CLIENT_IDS,  // Specify the WEB_CLIENT_ID of the app that accesses the backend
-      // Or, if multiple clients access the backend:
-      //[WEB_CLIENT_ID_1, WEB_CLIENT_ID_2, WEB_CLIENT_ID_3]
+    idToken,
+    audience: WEB_CLIENT_IDS, // Specify the WEB_CLIENT_ID of the app that accesses the backend
+    // Or, if multiple clients access the backend:
+    //[WEB_CLIENT_ID_1, WEB_CLIENT_ID_2, WEB_CLIENT_ID_3]
   });
   const payload = ticket.getPayload();
   // This ID is unique to each Google Account, making it suitable for use as a primary key
   // during account lookup. Email is not a good choice because it can be changed by the user.
   if (!payload.email_verified) {
-      throw BadExeception("Email NOt Verified")
-   }
-  return payload
+    throw BadExeception("Email NOt Verified");
+  }
+  return payload;
 }
 
 /*
@@ -48,38 +69,83 @@ payload: {
   }
 */
 
+export const signupWithGmail = async ({ idToken }, issuer) => {
+  console.log({ idToken });
+  const { name, email, picture } = await verifyGoogleAccount(idToken);
+  console.log({ name, email, picture });
 
-
-export const signupWithGmail = async ({ idToken} , issuer) => {
-   console.log({idToken});
-   const {name,email,picture} = await verifyGoogleAccount(idToken)
-   console.log({name,email,picture});
-   
-   const existAccount=await findOne({
+  const existAccount = await findOne({
     model: UserModel,
-    filter :{email}
-   })
-   if (existAccount) {
+    filter: { email },
+  });
+  if (existAccount) {
     if (existAccount.provider != ProviderEnum.GOOGLE) {
-      throw ConflictExeception("Invalid account provider")
+      throw ConflictExeception("Invalid account provider");
     }
-    
-    return {status:200, data: await createLoginCredentials({user: existAccount , issuer})}
-   }
-   
-   const user = await createOne({
-    model:UserModel,
-    date:{
-      username:name,
+
+    return {
+      status: 200,
+      data: await createLoginCredentials({ user: existAccount, issuer }),
+    };
+  }
+
+  const user = await createOne({
+    model: UserModel,
+    date: {
+      username: name,
       email,
       confirmEmail: new Date(),
       provider: ProviderEnum.GOOGLE,
-      image: picture
-    }
-   })
-  return {status:201, data: await createLoginCredentials({user , issuer})} ;
+      image: picture,
+    },
+  });
+  return { status: 201, data: await createLoginCredentials({ user, issuer }) };
 };
 
+const sendEmailOtp = async ({
+  email,
+  subject,
+  expiresIn = 120,
+  maxTrials = 3,
+  blockInSeconds = 300,
+  title,
+}) => {
+  const existOTP_TTL = await ttl({ Key: UserEmailKey({ email, subject }) });
+  if (existOTP_TTL > 0) {
+    throw ConflictExeception(
+      `Sorry we cannot create new otp while existing one still valid please try again later after ${existOTP_TTL}s`,
+    );
+  }
+
+  const oldTrials =
+    (await get({ Key: UserEmailTrailsKey({ email, subject }) })) ?? 0;
+  if (oldTrials >= maxTrials) {
+    throw TooManyReuestExeception("Many otp trials has been reached");
+  }
+
+  const code = createOtp();
+  await set({
+    Key: UserEmailKey({ email, subject }),
+    value: await hash({ plaintext: code.toString() }),
+    ttl: expiresIn,
+  });
+
+  const currentTrials = await incrBy({
+    Key: UserEmailTrailsKey({ email, subject }),
+  });
+
+  if (currentTrials == 3) {
+    await expire({
+      Key: UserEmailTrailsKey({ email, subject }),
+      ttl: blockInSeconds,
+    });
+  }
+  emailEvent.emit("sendEmail", {
+    recipients: { to: email },
+    subject,
+    data: { code, title: title ?? subject },
+  });
+};
 
 export const signup = async ({ username, email, password, phone, gender }) => {
   const duplicatedAccount = await findOne({
@@ -101,16 +167,123 @@ export const signup = async ({ username, email, password, phone, gender }) => {
     },
     options: { validdateBeforeSave: true },
   });
+
+  await sendEmailOtp({ email, subject: EmailSubjectEnum.CONFIRM_EMAIL });
   return user;
 };
 
+export const confirmEmail = async ({ otp, email }) => {
+  const account = await findOne({
+    model: UserModel,
+    filter: {
+      email,
+      provider: ProviderEnum.SYSTEM,
+      confirmEmail: { $exists: false },
+    },
+  });
+
+  if (!account) throw NotfoundExeception("Invalid account");
+
+  const hashOtp = await get({
+    Key: UserEmailKey({ email, subject: EmailSubjectEnum.CONFIRM_EMAIL }),
+  });
+  if (!hashOtp || !(await compare(otp, hashOtp))) {
+    throw ConflictExeception("Invalid OTP");
+  }
+  account.confirmEmail = new Date();
+  await account.save();
+  await del({
+    Key: await Keys({
+      prefix: UserEmailKey({ email, subject: EmailSubjectEnum.CONFIRM_EMAIL }),
+    }),
+  });
+  return;
+};
+export const resendConfirmEmail = async ({ email }) => {
+  const account = await findOne({
+    model: UserModel,
+    filter: {
+      email,
+      provider: ProviderEnum.SYSTEM,
+      confirmEmail: { $exists: false },
+    },
+  });
+
+  if (!account) throw NotfoundExeception("Invalid account");
+  await sendEmailOtp({ email, subject: EmailSubjectEnum.CONFIRM_EMAIL });
+
+  return;
+};
+export const requestForgotPasswordCode = async ({ email }) => {
+  const account = await findOne({
+    model: UserModel,
+    filter: {
+      email,
+      provider: ProviderEnum.SYSTEM,
+      confirmEmail: { $exists: true },
+    },
+  });
+
+  if (!account) throw NotfoundExeception("Invalid account");
+  await sendEmailOtp({ email, subject: EmailSubjectEnum.FORGOT_PASSWORD });
+
+  return account;
+};
+export const resetForgotPassword = async ({ otp, email, password }) => {
+  const account = await verifyForgotPasswordCode({ otp, email });
+  console.log({otp, email ,password});
+  
+  account.password = await hash({plaintext : password});
+  account.changeCredentialsTime = new Date();
+  await account.save();
+ 
+  const result = await Promise.all([
+    Keys({ prefix: userBaseRevokeTokenKey({ userId: account._id }) }),
+    Keys({ prefix: UserEmailKey({
+        email,
+        subject: EmailSubjectEnum.FORGOT_PASSWORD,
+      }),
+    }),
+  ]);
+
+  const keys = [...result[0], ...result[1]];
+  if (keys.length > 0) {
+    await del({ Key: keys });
+  }
+
+  return account;
+};
+export const verifyForgotPasswordCode = async ({ otp, email }) => {
+  const account = await findOne({
+    model: UserModel,
+    filter: {
+      email,
+      provider: ProviderEnum.SYSTEM,
+      confirmEmail: { $exists: true },
+    },
+  });
+
+  if (!account) throw NotfoundExeception("Invalid account");
+
+  const hashOtp = await get({
+    Key: UserEmailKey({ email, subject: EmailSubjectEnum.FORGOT_PASSWORD }),
+  });
+  if (!hashOtp || !(await compare(otp, hashOtp))) {
+    throw ConflictExeception("Invalid OTP");
+  }
+
+  return account;
+};
+
+
 export const login = async ({ email, password }, issuer) => {
-  console.log({email,password})
+  console.log({ email, password });
   const accont = await findOne({
     model: UserModel,
     filter: {
       email,
-      provider:ProviderEnum.SYSTEM
+      provider: ProviderEnum.SYSTEM,
+      confirmEmail: { $exists: true },
     },
   });
 
@@ -124,7 +297,5 @@ export const login = async ({ email, password }, issuer) => {
     throw NotfoundExeception("Not Exist");
   }
 
-
-  return await createLoginCredentials({user:accont , issuer})
+  return await createLoginCredentials({ user: accont, issuer });
 };
-

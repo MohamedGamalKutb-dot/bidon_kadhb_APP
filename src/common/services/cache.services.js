@@ -1,4 +1,4 @@
-import { client } from "../../DB/redis.connection";
+import { client } from "../../DB/redis.connection.js";
 
 export const set = async ({ Key, value, ttl = undefined } = {}) => {
   if (typeof value == "object") {
@@ -39,4 +39,7 @@ export const ttl = async ({ Key } = {}) => {
 };
 export const expire = async ({ Key, ttl} = {}) => {
   return await client.expire(Key,ttl);
+};
+export const incrBy = async ({ Key, value=1} = {}) => {
+  return await client.incrBy(Key,value);
 };

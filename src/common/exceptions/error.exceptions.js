@@ -16,6 +16,15 @@ export const ConflictExeception=(message="conflict" ,issues=undefined)=>{
     })
 
 }
+export const TooManyReuestExeception=(message="Too Many Reuest Exeception" ,issues=undefined)=>{
+    return ApplicationExeption({
+        message,
+        options:{
+            cause:{status: 429, issues}
+        }
+    })
+
+}
 
 export const NotfoundExeception=(message="Notfound" ,issues=undefined)=>{
     return ApplicationExeption({

@@ -3,7 +3,7 @@ import {
   findById,
   findByIdAndUpdate,
 } from "../../common/repository/base.repository.js";
-import { createLoginCredentials } from "../../common/security/token.security.js";
+import { createLoginCredentials, creatRevokeToken } from "../../common/security/token.security.js";
 import {
   ACCESS_TOKEN_EXPIRES_IN,
   REFRESH_TOKEN_EXPIRES_IN,
