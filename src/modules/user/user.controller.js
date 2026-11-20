@@ -83,15 +83,10 @@ router.post("/user/logout", authentication(), async (req, res, next) => {
   return successResponse({ res, status: 201, data });
 });
 
-router.delete("/user/:userId", async (req, res, next) => {
+router.delete("/user/:userId",authentication(), async (req, res, next) => {
   const data = await deleteUser(req.params);
   return successResponse({ res, status: 201, data });
 });
 
-router.get("/user", async (req, res, next) => {
-  const { id } = req.query;
-  const data = await getUser(id);
-  return successResponse({ res, status: 201, data });
-});
 
 export default router;

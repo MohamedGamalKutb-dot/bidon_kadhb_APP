@@ -35,7 +35,6 @@ const limiter =denerateLimiter({})
 
 app.set("trust proxy", true)
 //login-With Google drive
-app.use(cors());
 //level-middleware
 app.use(cors(),helmet(),morgan("dev") ,limiter, express.json());
 //multer- imge
