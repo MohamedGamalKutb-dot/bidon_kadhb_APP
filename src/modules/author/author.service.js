@@ -231,8 +231,7 @@ export const requestForgotPasswordCode = async ({ email }) => {
 };
 export const resetForgotPassword = async ({ otp, email, password }) => {
   const account = await verifyForgotPasswordCode({ otp, email });
-  console.log({otp, email ,password});
-  
+
   account.password = await hash({plaintext : password});
   account.changeCredentialsTime = new Date();
   await account.save();
@@ -277,7 +276,6 @@ export const verifyForgotPasswordCode = async ({ otp, email }) => {
 
 
 export const login = async ({ email, password }, issuer) => {
-  console.log({ email, password });
   const accont = await findOne({
     model: UserModel,
     filter: {

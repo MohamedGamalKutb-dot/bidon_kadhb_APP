@@ -77,7 +77,6 @@ export const decodeToken = async ({
   tokenType = TokenTypeEnum.ACCESS,
 }) => {
   const decoded = jwt.decode(authorization);
-  console.log(decoded);
   if (!decoded?.aud?.length) {
     throw BadExeception("missing token payload");
   }
@@ -143,7 +142,6 @@ export const createLoginCredentials = async ({
     },
   });
 
-  console.log({ accessSignature, refreshSignature });
   return { access_token, refresh_token };
 };
 
@@ -151,7 +149,6 @@ export const creatRevokeToken = async ({ payload }) => {
   const consumedTime = (Math.ceil(Date.now() / 1000) - payload.iat) / 60;
   const refreshExpiresIn = payload.iat + REFRESH_TOKEN_EXPIRES_IN;
   const ttl = Math.floor(refreshExpiresIn - consumedTime);
-  console.log(payload, consumedTime, refreshExpiresIn, ttl);
   await set({
     Key: userRevokeTokenKey({ userId: payload.sub, jti: payload.jti }),
     value: payload.jti,

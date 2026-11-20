@@ -1,15 +1,13 @@
 import { UserModel } from "../../DB/model/user.model.js";
 import {
-  findById,
   findByIdAndUpdate,
 } from "../../common/repository/base.repository.js";
 import { createLoginCredentials, creatRevokeToken } from "../../common/security/token.security.js";
 import {
   ACCESS_TOKEN_EXPIRES_IN,
-  REFRESH_TOKEN_EXPIRES_IN,
 } from "../../config.js";
 import { ConflictExeception } from "../../common/exceptions/error.exceptions.js";
-import { del, Keys, set } from "../../common/services/index.js";
+import { del, Keys } from "../../common/services/index.js";
 import { LogoutEnum } from "../../common/enum/security.enum.js";
 
 export const profile = async (user) => {

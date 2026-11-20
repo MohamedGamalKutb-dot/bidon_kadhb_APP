@@ -1,149 +1,76 @@
-import mongoose from "mongoose";
-import { messageModel } from "../../DB/model/message.model.js";
+import { UserModel } from "./../../DB/model/user.model.js";
+import { NotfoundExeception } from "../../common/exceptions/error.exceptions.js";
+import * as messageRepository from "../../common/repository/message.repository.js";
+import * as userRepository from "../../common/repository/base.repository.js";
 
-export const create = async ({ title, content, userId }) => {
-  const notes = await messageModel.create({ title, content, userId });
-  return notes;
-};
-
-export const updateNote = async ({ notesId }, { title, content }) => {
-  const notes = await messageModel.updateOne(
-    {
-      _id: notesId,
-    },
-    {
-      $set: {
-        title,
-        content,
-      },
-      $inc: {
-        __v: 1,
-      },
-    },
-    {
-      runValidators: true,
-      returnDocument: "after",
-    },
-  );
-  return notes;
-};
-
-export const replaceNote = async ({ noteId }, { title, content, userId }) => {
-  const notes = messageModel.findOneAndReplace(
-    {
-      _id: noteId,
-    },
-    {
-      title,
+export const createMessage = async (
+  { content, receiverId } = {},
+  files = [],
+  user = undefined,
+) => {
+  const chekReceiverExist = await userRepository.findById({
+    model: UserModel,
+    id: receiverId,
+  });
+  if (!chekReceiverExist) {
+    throw NotfoundExeception("Invalid receiver Id");
+  }
+  const message = await messageRepository.createOne({
+    date: {
+      receiverId,
       content,
-      userId,
+      attachments: files.map((ele) => ele.path),
+      ...(user ? { senderId: user._id } : {}),
     },
-    {
-      returnDocument: "after",
-    },
-  );
-  return notes;
+  });
+  return message;
 };
 
-export const allUpdateNote = async ({ userId }, { title, content }) => {
-  const notes = await messageModel.updateMany(
-    {
-      userId: userId,
-    },
-    {
-      $set: {
-        title,
-        content,
-      },
-    },
-    {
-      runValidators: true,
-      returnDocument: "after",
-    },
-  );
-  return notes;
+export const getAllMesssages = async ({ type ,page ,limit} = {}, user) => {
+
+  let filter = {};
+  if (type == "0") {
+    filter = { receiverId: user._id };
+  } else if (type == "1") {
+    filter = { senderId: user._id };
+  } else {
+    filter = {
+      $or: [{ senderId: user._id }, { receiverId: user._id }],
+    };
+  }   
+
+    const data =await messageRepository.paginate({
+      filter,
+      options:{
+        sort:{ createdAt: -1 }
+      }, //  دا عشان يرجع الاحدث للاقدم
+      page,
+      limit
+    })
+
+  return data;
 };
 
-export const deleteNotes = async ({ notesId }) => {
-  const user = await messageModel.deleteOne({ _id: notesId });
-  return user;
+export const getMessage = async ({messageId},user) => {
+  
+    const data =await messageRepository.findOne({
+      filter:{receiverId:user._id, _id: messageId}
+    })
+    
+    if (!data) {
+      throw NotfoundExeception("Invalid  Message Id");
+    }
+  return data;
 };
-
-export const retrievetLimit = async ({ userId, page = 1, limit = 3 }) => {
-  const pageNotes = parseInt(page, 10);
-  const limitNotes = parseInt(limit, 10);
-
-  const skip = (pageNotes - 1) * limitNotes;
-  const user = await messageModel
-    .find({ userId: userId })
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limitNotes);
-  return user;
-};
-
-export const gitByIdNotes = async ({ noteId }) => {
-  const user = await messageModel.findById(noteId);
-  return user;
-};
-export const noteByUserByEmail = async ({ userId }) => {
-  //user Email اللي في الجدول التاني
-  const user = await messageModel
-    .find({ userId: userId })
-    .select("title userId createdAt")
-    .populate("userId", "email");
-  return user;
-};
-
-export const aggregate = async ({ title, userId }) => {
-  const matchQuery = {};
-
-  if (userId) {
-    matchQuery.userId = new mongoose.Types.ObjectId(userId);
-  }
-
-  if (title) {
-    matchQuery.title = { $regex: title, $options: "i" };
-  }
-  const user = await messageModel.aggregate([
-    {
-      $match: matchQuery,
-    },
-    {
-      $lookup: {
-        from: "Users",
-        localField: "userId",
-        foreignField: "_id",
-        as: "userforin",
-      },
-    },
-    {
-      $unwind: {
-        path: "$userforin",
-        preserveNullAndEmptyArrays: true, 
-      },
-    },
-
-    {
-      $project: {
-        title: 1,
-        content: 1,
-        createdAt: 1,
-        "userforin.name": 1,
-        "userforin.email": 1,
-      },
-    },
-  ]);
-  return user;
-};
-export const getUser = async (inputs) => {
-  console.log(inputs);
-  const user = await UserModel.findById(inputs);
-  return user;
-};
-
-
-export const deleteall = async ({userId}) => {
-  const user = await messageModel.deleteMany({ userId: userId });
-  return user;
+export const deleteMessage = async ({messageId},user) => {
+  
+    const data =await messageRepository.deleteOne({
+  
+      filter:{receiverId:user._id, _id: messageId}
+    })
+    
+    if (!data.deletedCount) {
+      throw NotfoundExeception("Invalid  MessageId");
+    }
+  return data;
 };

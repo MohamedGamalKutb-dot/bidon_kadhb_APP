@@ -26,5 +26,6 @@ export const APP_EMAIL = process.env.APP_EMAIL;
 export const APPLICATION_NAME = process.env.APPLICATION_NAME;
 export const REFRESH_TOKEN_EXPIRES_IN = parseInt(process.env.REFRESH_TOKEN_EXPIRES_IN ?? "31536000")
 export const WEB_CLIENT_IDS = process.env.WEB_CLIENT_IDS.split(",");
+export const ORIGINS = process.env.ORIGINS.split(",");
 export const REDIS_URL = process.env.REDIS_URL;
 

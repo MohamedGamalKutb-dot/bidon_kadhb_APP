@@ -27,6 +27,9 @@ export const find = async ({
   if (options.populate) {
     doc.populate(options.populate);
   }
+  if (options.sort) {
+    doc.sort(options.sort);
+  }
   if (options.skip) {
     doc.skip(options.skip);
   }
@@ -39,6 +42,39 @@ export const find = async ({
     doc.lean(options.lean);
   }
   return await doc.exec();
+};
+export const paginate = async ({
+  filter = {},
+  options = {},
+  model,
+  page=1,
+  limit=5
+} = {}) => {
+  
+  const skip= (page - 1) *limit;
+      const count= await countDocuments({filter , model}) ;
+      const pages= Math.ceil(count / limit);
+  
+    
+    const docs = await find({
+      model,
+      filter ,
+      options:{
+        ...options,
+        skip,
+        limit,
+        // sort:{ createdAt: -1 } //  دا عشان يرجع الاحدث للاقدم
+      }
+    });
+  
+    return {count, limit , pages ,currentPage: page  ,docs};
+};
+
+export const countDocuments = async ({
+  filter = {},
+  model,
+} = {}) => {
+  return await model.countDocuments(filter);
 };
 
 export const findById = async ({ 

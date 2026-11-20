@@ -4,12 +4,13 @@ import { BadExeception } from "../common/exceptions/error.exceptions.js";
 export const validation = (schema) => {
   return (req, res, next) => {
     const lang =Number(req.headers['accept-language']?? LangugeEnum.EN)
-    console.log({lang});
     
     const validationResult = schema(lang).safeParse({
       body:req.body,
       query:req.query,
       params:req.params,
+      file:req.file,
+      files:req.files,
     });
     console.log({validationResult});
     

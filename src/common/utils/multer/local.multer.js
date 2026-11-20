@@ -18,15 +18,13 @@ export const processFile = async ({customPath ="general" ,file, validation = [] 
   
     const result = await fileTypeFromBuffer(file.buffer);
      
-    console.log({result});    
     if (!result || !validation.includes(result.mime)) {
       throw BadExeception("Invalid File formats")
     } else {
       await mkdir(resolve(`./assets/${customPath}`), { recursive: true });
       const uniqueFilePath=`assets/${customPath}/${randomUUID()}.${result.ext}`;
-      console.log({uniqueFilePath});
       await writeFile(resolve(`./${uniqueFilePath}`), file.buffer);
-      file.finalPath= uniqueFilePath
+      file.path= uniqueFilePath
       return file 
     }
 

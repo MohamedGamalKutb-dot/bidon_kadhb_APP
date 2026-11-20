@@ -2,6 +2,12 @@ import { TokenTypeEnum } from "../common/enum/security.authentication.enum.js";
 import { ForbiddenExeception, UnauthorizedExeception } from "../common/exceptions/index.js";
 import { decodeToken } from "./../common/security/token.security.js";
 
+export const bearerAuth = async ({req, tokenType=TokenTypeEnum.ACCESS}={}) => {
+ const [key, credential] = req.headers["authorization"]?.split(" ") || [];
+ const { user, payload } = await decodeToken({authorization: credential, tokenType});
+        req.user = user;
+        req.payload = payload;
+}
 
 export const authentication = (tokenType = TokenTypeEnum.ACCESS) => {
   return async (req, res, next) => {
@@ -11,20 +17,12 @@ export const authentication = (tokenType = TokenTypeEnum.ACCESS) => {
       throw UnauthorizedExeception("Unauthorized user");
     }
     const [key, credential] = authorization.split(" ") || [];
-    console.log({ key, credential });
     switch (key) {
       case "Basic":
         const data =Buffer.from(credential ,'base64').toString()?.split(":");
-        console.log({data});
         
         break;
-      case "Bearer":
-         const { user, payload } = await decodeToken({
-          authorization: credential,
-          tokenType,
-        });
-        req.user = user;
-        req.payload = payload;
+      case "Bearer": await bearerAuth({req, tokenType})
         break;
 
       default:

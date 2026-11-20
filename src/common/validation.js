@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { GenderEnum } from "./enum/user.enum.js";
 import { LangugeEnum } from "./enum/security.enum.js";
+import mongoose from "mongoose";
 
 const validationMessages = {
     102: {
@@ -37,6 +38,17 @@ export const generalValidationFields = {
         validationMessages[102].ar : validationMessages[102].en
      }).max(51),
   phone:(lang)=> z.e164(),
+  id:(lang)=> z.string().refine((data)=>{return mongoose.Types.ObjectId.isValid(data)},{message: "Invalid format"}),
+  files:(lang)=>  z.strictObject({
+          fieldname: z.string(),
+          originalname: z.string(),
+          encoding: z.string(),
+          mimetype: z.string(),
+          buffer: z.instanceof(Buffer),
+          size: z.number(),
+          path: z.string(),
+        }),
+  
   confirmpassword:(lang)=> z.string().min(8).max(16),
   gender:(lang)=> z.enum(GenderEnum),
   matchFields
